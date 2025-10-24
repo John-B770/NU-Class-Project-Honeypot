@@ -1,0 +1,109 @@
+Honeypot — Lightweight TCP honeypot
+=================================
+
+This README documents the lightweight TCP honeypot included in this repository.
+
+Files
+- `scripts/honeypot.py` — main honeypot implementation (threaded, JSON-lines logging, optional banner).
+- `honeypot final project.py` — an alternate location/filename of the same script (present in the workspace root).
+
+Quick summary
+- Binds one or more TCP ports on a host (default `127.0.0.1`).
+- Optionally sends a small banner on connect and logs connection metadata (JSON lines) to a logfile.
+- Designed for local testing and learning. By default it binds to localhost to avoid exposing the service.
+
+Prerequisites
+- Python 3.7 or newer installed and available on PATH.
+- No extra Python packages required — the script uses only the standard library.
+- Write permission to the directory where you run the script if you want logfile output.
+- Use non-privileged ports (>1024) unless you intentionally run as administrator/root.
+
+Important safety & legal notes
+- Run honeypots only on hosts and networks you own or where you have explicit written permission.
+- Default binding is `127.0.0.1`. Do NOT use `0.0.0.0` on a public host unless you understand the security, privacy and legal implications.
+- Honeypots can attract malicious traffic; run them in isolated or monitored environments (VMs, containers).
+
+Usage examples (PowerShell)
+
+Start a honeypot on localhost port 2222 with an SSH-like banner:
+
+```powershell
+python .\scripts\honeypot.py --host 127.0.0.1 --ports 2222 --banner "SSH-2.0-FakeHP"
+```
+
+Start on multiple ports (single and a range):
+
+```powershell
+python .\scripts\honeypot.py --host 127.0.0.1 --ports 2222,2323-2325 --banner "SSH-2.0-FakeHP"
+```
+
+Write structured JSON logs to a custom file:
+
+```powershell
+python .\scripts\honeypot.py --logfile my_hp.jsonl
+```
+
+Run the script directly from the workspace root if your copy is named `honeypot final project.py`:
+
+```powershell
+python "c:\Users\John Bartell\honeypot final project.py" --host 127.0.0.1 --ports 2222
+```
+
+Command-line options
+- `--host` — bind address (default `127.0.0.1`).
+- `--ports` — comma separated ports and ranges (e.g. `2222,2323-2330`).
+- `--banner` — optional banner string to send immediately after accept.
+- `--logfile` — filename to append JSON log lines (default `honeypot.log`).
+- `--no-json` — disable writing JSON log file (only console logs).
+
+Log format
+- Each connection produces a single JSON object written as a line to the logfile (if enabled). Example fields:
+  - `timestamp` — ISO8601 UTC time
+  - `peer` — remote address and port (e.g. `192.0.2.5:54321`)
+  - `port` — local port that received the connection
+  - `banner_sent` — boolean
+  - `data_len` — length of data received
+  - `data_preview` or `data_hex` — safe preview of the first bytes
+
+Quick local test (PowerShell)
+
+1. Start the honeypot in Terminal A:
+
+```powershell
+python .\scripts\honeypot.py --host 127.0.0.1 --ports 2222 --banner "SSH-2.0-FakeHP"
+```
+
+2. In Terminal B, connect and exchange data:
+
+```powershell
+# show banner, send 'hello', show response
+python - <<'PY'
+import socket
+with socket.create_connection(('127.0.0.1',2222), timeout=2) as s:
+    try:
+        s.settimeout(1.0)
+        print('banner:', s.recv(1024))
+    except Exception:
+        print('no banner')
+    s.sendall(b'hello\n')
+    try:
+        print('response:', s.recv(1024))
+    except Exception:
+        print('no response')
+PY
+```
+
+Troubleshooting
+- "Address already in use" — choose a different port or stop the process holding the port.
+- "Permission denied" when binding to port ≤1024 — run with elevated privileges or choose a higher port.
+- No banner / no response — check that the honeypot started (console logs show listening ports) and firewall rules allow localhost traffic.
+
+Suggested next steps
+- Persist logs to a central store (ELK, Splunk) for analysis.
+- Add protocol emulation to entice different types of connections (HTTP, SSH, FTP), but never execute or interpret payloads unsafely.
+- Add alerting (email, webhook) and rate-limiting to avoid being used as an amplifier.
+
+If you want, I can generate:
+- a small PowerShell helper to create a venv and run the honeypot,
+- a systemd service file or Windows service wrapper,
+- or a notebook cell that automatically runs the honeypot and then runs the scanner against it and shows results.
